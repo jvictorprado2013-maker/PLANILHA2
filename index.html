@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle Financeiro</title>
+    <!-- Carrega o Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Novas bibliotecas para CSV e ZIP -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        /* Fonte Inter */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Ajustes para o tema escuro */
+        .tab-content {
+            display: none; /* Oculta abas por padrão */
+        }
+        .tab-content.active {
+            display: block; /* Mostra aba ativa */
+        }
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2d3748; /* bg-gray-800 */
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #e53e3e; /* bg-red-600 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #c53030; /* bg-red-700 */
+        }
+
+        /* Estilos para o gráfico de barras simples */
+        .bar-chart-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+        .bar-chart-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .bar-chart-label {
+            flex-shrink: 0;
+            width: 80px; /* Label do mês (ex: 10/2025) */
+            font-size: 0.875rem;
+            color: #cbd5e0; /* text-gray-400 */
+        }
+        .bar-chart-bar-bg {
+            flex-grow: 1;
+            background-color: #4a5568; /* bg-gray-700 */
+            border-radius: 4px;
+            height: 24px;
+            overflow: hidden;
+        }
+        .bar-chart-bar {
+            height: 100%;
+            background-color: #38a169; /* bg-green-500 */
+            border-radius: 4px;
+            text-align: right;
+            padding-right: 8px;
+            color: white;
+            font-size: 0.75rem;
+            font-weight: 500;
+            line-height: 24px;
+            white-space: nowrap;
+            transition: width 0.5s ease-out;
+        }
+        .bar-chart-bar.negative {
+            background-color: #e53e3e; /* bg-red-600 */
+            text-align: left;
+            padding-left: 8px;
+        }
+    </style>
+</head>
+<body class="bg-black text-white min-h-screen antialiased selection:bg-red-500 selection:text-white">
+
+    <!-- Container Principal -->
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+
+        <!-- Cabeçalho -->
+        <header class="mb-6">
+            <h1 class="text-3xl font-bold text-red-500">Ferramenta de Controle Financeiro</h1>
+            <p class="text-gray-400">Gerencie suas finanças, revendedores e contas em um só lugar.</p>
+        </header>
+
+        <!-- Navegação por Abas -->
+        <nav class="flex flex-wrap border-b border-gray-700 mb-6">
+            <button data-tab="dashboard" class="tab-button bg-red-600 text-white py-2 px-4 rounded-t-lg font-medium shadow-md transition-all duration-300 transform hover:-translate-y-px">
+                Dashboard
+            </button>
+            <button data-tab="iptv" class="tab-button bg-gray-800 text-gray-300 py-2 px-4 rounded-t-lg font-medium hover:bg-gray-700 transition-all duration-300 transform hover:-translate-y-px">
+                Revendedores IPTV
+            </button>
+            <button data-tab="casa" class="tab-button bg-gray-800 text-gray-300 py-2 px-4 rounded-t-lg font-medium hover:bg-gray-700 transition-all duration-300 transform hover:-translate-y-px">
+                Contas da Casa
+            </button>
+            <button data-tab="recebidas" class="tab-button bg-gray-800 text-gray-300 py-2 px-4 rounded-t-lg font-medium hover:bg-gray-700 transition-all duration-300 transform hover:-translate-y-px">
+                Entradas Recebidas
+            </button>
+            <button data-tab="historico" class="tab-button bg-gray-800 text-gray-300 py-2 px-4 rounded-t-lg font-medium hover:bg-gray-700 transition-all duration-300 transform hover:-translate-y-px">
+                Histórico
+            </button>
+        </nav>
+
+        <!-- Conteúdo das Abas -->
+        <main>
+            <!-- ======================= -->
+            <!-- ABA 1: DASHBOARD        -->
+            <!-- ======================= -->
+            <div id="dashboard" class="tab-content active space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Card: Resumo Mensal -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Resumo Mensal</h2>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Entradas (IPTV):</span>
+                                <span id="dash-entradas" class="font-medium text-green-400">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Custos (IPTV):</span>
+                                <span id="dash-custos-iptv" class="font-medium text-red-400">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Contas (Casa):</span>
+                                <span id="dash-contas-casa" class="font-medium text-red-400">R$ 0,00</span>
+                            </div>
+                            <hr class="border-gray-700 my-2">
+                            <div class="flex justify-between text-xl">
+                                <span class="font-bold">Lucro Líquido:</span>
+                                <span id="dash-lucro-liquido" class="font-bold text-white">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card: Resumo Anual (Estimativa) -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Estimativa Anual</h2>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Entradas (IPTV):</span>
+                                <span id="dash-entradas-ano" class="font-medium text-green-400">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Custos Totais:</span>
+                                <span id="dash-custos-ano" class="font-medium text-red-400">R$ 0,00</span>
+                            </div>
+                            <hr class="border-gray-700 my-2">
+                            <div class="flex justify-between text-xl">
+                                <span class="font-bold">Lucro Líquido:</span>
+                                <span id="dash-lucro-ano" class="font-bold text-white">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card: Ações do Mês -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Ações</h2>
+                        <p class="text-gray-400 mb-4 text-sm">Salva o histórico deste mês e limpa os pagamentos para iniciar um novo ciclo.</p>
+                        <button id="close-month-button" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                            Fechar Mês e Salvar Histórico
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Seção de Entradas e Devedores -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Card: Entradas Previstas -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Entradas Previstas (por Data)</h2>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Dias 1-5:</span>
+                                <span id="dash-range-1-5" class="font-medium text-white">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Dias 6-10:</span>
+                                <span id="dash-range-6-10" class="font-medium text-white">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Dias 11-15:</span>
+                                <span id="dash-range-11-15" class="font-medium text-white">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Dias 16-21:</span>
+                                <span id="dash-range-16-21" class="font-medium text-white">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Dias 22-31:</span>
+                                <span id="dash-range-22-31" class="font-medium text-white">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card: Devedores (Revendedores) -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Devedores (Revendedores)</h2>
+                        <p class="text-gray-400 mb-4 text-sm">Lista de revendedores com pagamento pendente este mês.</p>
+                        <ul id="dash-debtors-list" class="space-y-2 max-h-40 overflow-y-auto">
+                            <!-- Lista será preenchida pelo JS -->
+                            <li class="text-gray-500">Nenhum devedor encontrado.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Seção de Importar/Exportar -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Card: Gerenciamento de Dados -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20 md:col-span-2">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Gerenciamento de Dados</h2>
+                        <p class="text-gray-400 mb-4 text-sm">Salve ou carregue um backup de todos os seus dados cadastrados.</p>
+                        
+                        <!-- Alterado para grid para melhor alinhamento -->
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- JSON -->
+                            <button id="export-json-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg">
+                                Exportar JSON (Backup)
+                            </button>
+                            <input type="file" id="import-json-file-input" class="hidden" accept=".json">
+                            <button id="import-json-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                                Importar JSON (Restaurar)
+                            </button>
+
+                            <!-- CSV (NOVO) -->
+                            <button id="export-csv-button" class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg">
+                                Exportar CSV (ZIP)
+                            </button>
+                            <input type="file" id="import-csv-file-input" class="hidden" accept=".zip">
+                            <button id="import-csv-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                                Importar CSV (ZIP)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======================= -->
+            <!-- ABA 2: REVENDEDORES IPTV  -->
+            <!-- ======================= -->
+            <div id="iptv" class="tab-content space-y-6">
+                
+                <!-- Seção de Cadastro -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Formulário: Cadastrar Revendedor -->
+                    <form id="form-add-reseller" class="bg-gray-900 border border-gray-700 rounded-lg p-5 space-y-4 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold text-red-400 pb-3 border-b border-gray-700">Cadastrar Novo Revendedor</h2>
+                        <div>
+                            <label for="reseller-name" class="block text-sm font-medium text-gray-300">Nome</label>
+                            <input type="text" id="reseller-name" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="reseller-plan" class="block text-sm font-medium text-gray-300">Valor do Plano (R$)</label>
+                            <input type="number" id="reseller-plan" step="0.01" min="0" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="reseller-day" class="block text-sm font-medium text-gray-300">Dia do Pagamento (1-31)</label>
+                            <input type="number" id="reseller-day" min="1" max="31" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <button id="reseller-submit-button" type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                            Adicionar Revendedor
+                        </button>
+                        <button id="reseller-cancel-edit-button" type="button" class="hidden w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                            Cancelar Edição
+                        </button>
+                    </form>
+
+                    <!-- Formulário: Cadastrar Custo IPTV -->
+                    <form id="form-add-iptv-cost" class="bg-gray-900 border border-gray-700 rounded-lg p-5 space-y-4 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold text-red-400 pb-3 border-b border-gray-700">Cadastrar Custo (Painéis, Apps, etc.)</h2>
+                        <div>
+                            <label for="iptv-cost-desc" class="block text-sm font-medium text-gray-300">Descrição</label>
+                            <input type="text" id="iptv-cost-desc" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="iptv-cost-value" class="block text-sm font-medium text-gray-300">Valor do Custo (R$)</label>
+                            <input type="number" id="iptv-cost-value" step="0.01" min="0" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="iptv-cost-day" class="block text-sm font-medium text-gray-300">Dia do Pagamento (1-31)</label>
+                            <input type="number" id="iptv-cost-day" min="1" max="31" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <button id="iptv-cost-submit-button" type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                            Adicionar Custo
+                        </button>
+                        <button id="iptv-cost-cancel-edit-button" type="button" class="hidden w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                            Cancelar Edição
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Seção de Listas -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Lista: Revendedores -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Meus Revendedores</h2>
+                        <div id="resellers-list-container" class="max-h-96 overflow-y-auto">
+                            <!-- Conteúdo da lista de revendedores -->
+                        </div>
+                    </div>
+
+                    <!-- Lista: Custos IPTV -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Meus Custos (IPTV)</h2>
+                        <div id="iptv-costs-list-container" class="max-h-96 overflow-y-auto">
+                            <!-- Conteúdo da lista de custos -->
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- ======================= -->
+            <!-- ABA 3: CONTAS DA CASA   -->
+            <!-- ======================= -->
+            <div id="casa" class="tab-content space-y-6">
+                <!-- Seção de Cadastro -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Formulário: Cadastrar Conta -->
+                    <form id="form-add-household-bill" class="bg-gray-900 border border-gray-700 rounded-lg p-5 space-y-4 shadow-lg transition-all duration-300 hover:shadow-red-900/20 md:col-span-1">
+                        <h2 class="text-xl font-semibold text-red-400 pb-3 border-b border-gray-700">Cadastrar Nova Conta</h2>
+                        <div>
+                            <label for="bill-desc" class="block text-sm font-medium text-gray-300">Descrição da Conta</label>
+                            <input type="text" id="bill-desc" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="bill-value" class="block text-sm font-medium text-gray-300">Valor (R$)</label>
+                            <input type="number" id="bill-value" step="0.01" min="0" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <div>
+                            <label for="bill-day" class="block text-sm font-medium text-gray-300">Dia do Vencimento (1-31)</label>
+                            <input type="number" id="bill-day" min="1" max="31" required class="mt-1 block w-full bg-gray-800 border-gray-600 rounded-lg text-white p-2 transition-all duration-200 focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                        </div>
+                        <button id="bill-submit-button" type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg hover:shadow-red-500/30">
+                            Adicionar Conta
+                        </button>
+                        <button id="bill-cancel-edit-button" type="button" class="hidden w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-200">
+                            Cancelar Edição
+                        </button>
+                    </form>
+
+                    <!-- Lista: Contas da Casa -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20 md:col-span-1">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Minhas Contas</h2>
+                        <div id="household-bills-list-container" class="max-h-96 overflow-y-auto">
+                            <!-- Conteúdo da lista de contas -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- ======================= -->
+            <!-- ABA 4: ENTRADAS RECEBIDAS -->
+            <!-- ======================= -->
+            <div id="recebidas" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Card: Resumo de Recebimentos (Consolidado) -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Resumo de Recebimentos (Consolidado)</h2>
+                        <div class="space-y-2">
+                            <div class="flex justify-between text-lg">
+                                <span class="text-gray-400">Total Recebido:</span>
+                                <span id="received-total-summary" class="font-medium text-green-400">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Total Pendente:</span>
+                                <span id="pending-total-summary" class="font-medium text-yellow-400">R$ 0,00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lista: Pagamentos Recebidos -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Lista de Pagamentos Recebidos</h2>
+                        <div id="received-list-container" class="max-h-[340px] overflow-y-auto">
+                            <!-- Conteúdo da lista de recebidos -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ======================= -->
+            <!-- ABA 5: HISTÓRICO        -->
+            <!-- ======================= -->
+            <div id="historico" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Card: Gráfico Histórico de Lucro -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-4 pb-3 border-b border-gray-700 text-red-400">Gráfico de Lucro (Últimos 12 meses)</h2>
+                        <div id="history-chart-container" class="bar-chart-container">
+                            <!-- Gráfico será preenchido pelo JS -->
+                        </div>
+                    </div>
+
+                    <!-- Card: Lista Histórico de Lucro -->
+                    <div class="bg-gray-900 border border-gray-700 rounded-lg p-5 shadow-lg transition-all duration-300 hover:shadow-red-900/20">
+                        <h2 class="text-xl font-semibold mb-3 pb-3 border-b border-gray-700 text-red-400">Histórico de Meses Fechados</h2>
+                        <div id="history-list-container" class="max-h-96 overflow-y-auto">
+                            <!-- Histórico será preenchido pelo JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Modal de Confirmação/Alerta -->
+    <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Overlay -->
+        <div id="modal-overlay" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        
+        <!-- Conteúdo do Modal -->
+        <div class="relative w-full max-w-md bg-gray-900 border border-red-700 rounded-lg shadow-xl p-6">
+            <h3 id="modal-title" class="text-2xl font-bold text-red-400 mb-3">Atenção</h3>
+            <p id="modal-message" class="text-gray-300 mb-6">Mensagem do modal.</p>
+            
+            <!-- Botões do Modal -->
+            <div class="flex justify-end gap-4">
+                <button id="modal-cancel-button" class="bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-5 rounded-lg transition-all duration-200">
+                    Cancelar
+                </button>
+                <button id="modal-confirm-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-5 rounded-lg transition-all duration-200">
+                    Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Scripts -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- Estrutura de Dados e localStorage ---
+            const DB_KEY = 'financialControlDB_v2'; // Nova chave para evitar conflitos com a v1
+            let db = {
+                resellers: [],
+                iptvCosts: [],
+                householdBills: [],
+                monthlyHistory: [] // NOVO: Para Melhoria 2
+            };
+
+            // Estado de Edição (para Melhoria 1)
+            let editingId = null;
+            let editingType = null; // 'reseller', 'iptvCost', 'householdBill'
+
+            function loadData() {
+                // Tenta carregar dados da v2
+                let data = localStorage.getItem(DB_KEY);
+                
+                if (data) {
+                    db = JSON.parse(data);
+                } else {
+                    // Se não houver v2, tenta migrar da v1
+                    const v1Data = localStorage.getItem('financialControlDB');
+                    if (v1Data) {
+                        const oldDb = JSON.parse(v1Data);
+                        db.resellers = oldDb.resellers || [];
+                        db.iptvCosts = oldDb.iptvCosts || [];
+                        db.householdBills = oldDb.householdBills || [];
+                        db.monthlyHistory = []; // Inicia histórico
+                        
+                        // Salva os dados migrados na nova chave
+                        saveData();
+                        // Remove a chave antiga para não migrar de novo
+                        localStorage.removeItem('financialControlDB');
+                        showModal("Migração Concluída", "Seus dados antigos foram migrados com sucesso para a nova versão da ferramenta.");
+                    }
+                }
+                
+                // Garante que as arrays existam
+                db.resellers = db.resellers || [];
+                db.iptvCosts = db.iptvCosts || [];
+                db.householdBills = db.householdBills || [];
+                db.monthlyHistory = db.monthlyHistory || [];
+            }
+
+
+            function saveData() {
+                localStorage.setItem(DB_KEY, JSON.stringify(db));
+            }
+
+            // --- Funções Auxiliares ---
+            function formatCurrency(value) {
+                return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            }
+
+            function generateId() {
+                return '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            // --- Navegação por Abas ---
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            function showTab(tabId) {
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                });
+                const tabToShow = document.getElementById(tabId);
+                if(tabToShow) {
+                    tabToShow.classList.add('active');
+                }
+
+                tabButtons.forEach(button => {
+                    if (button.dataset.tab === tabId) {
+                        button.classList.remove('bg-gray-800', 'text-gray-300', 'hover:bg-gray-700');
+                        button.classList.add('bg-red-600', 'text-white');
+                    } else {
+                        button.classList.add('bg-gray-800', 'text-gray-300', 'hover:bg-gray-700');
+                        button.classList.remove('bg-red-600', 'text-white');
+                    }
+                });
+            }
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    showTab(button.dataset.tab);
+                });
+            });
+
+            // --- Lógica do Dashboard ---
+            const dashEntradas = document.getElementById('dash-entradas');
+            const dashCustosIptv = document.getElementById('dash-custos-iptv');
+            const dashContasCasa = document.getElementById('dash-contas-casa');
+            const dashLucroLiquido = document.getElementById('dash-lucro-liquido');
+            const dashEntradasAno = document.getElementById('dash-entradas-ano');
+            const dashCustosAno = document.getElementById('dash-custos-ano');
+            const dashLucroAno = document.getElementById('dash-lucro-ano');
+            const dashRange1_5 = document.getElementById('dash-range-1-5');
+            const dashRange6_10 = document.getElementById('dash-range-6-10');
+            const dashRange11_15 = document.getElementById('dash-range-11-15');
+            const dashRange16_21 = document.getElementById('dash-range-16-21');
+            const dashRange22_31 = document.getElementById('dash-range-22-31');
+            const dashDebtorsList = document.getElementById('dash-debtors-list');
+            const closeMonthButton = document.getElementById('close-month-button'); // ID Alterado
+
+            // --- Elementos do Modal ---
+            const modal = document.getElementById('modal');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalTitle = document.getElementById('modal-title');
+            const modalMessage = document.getElementById('modal-message');
+            let modalCancelButton = document.getElementById('modal-cancel-button');
+            let modalConfirmButton = document.getElementById('modal-confirm-button');
+
+            // --- Elementos de Import/Export ---
+            // Renomeados
+            const exportJsonButton = document.getElementById('export-json-button');
+            const importJsonButton = document.getElementById('import-json-button');
+            const importJsonFileInput = document.getElementById('import-json-file-input');
+            
+            // Novos
+            const exportCsvButton = document.getElementById('export-csv-button');
+            const importCsvButton = document.getElementById('import-csv-button');
+            const importCsvFileInput = document.getElementById('import-csv-file-input');
+
+            // --- Elementos Aba Recebidas ---
+            const receivedListContainer = document.getElementById('received-list-container');
+            const receivedTotalSummary = document.getElementById('received-total-summary');
+            const pendingTotalSummary = document.getElementById('pending-total-summary');
+            
+            // --- Elementos Aba Histórico ---
+            const historyListContainer = document.getElementById('history-list-container');
+            const historyChartContainer = document.getElementById('history-chart-container');
+
+            // --- Função do Modal ---
+            function showModal(title, message, onConfirm = null) {
+                modalTitle.textContent = title;
+                modalMessage.textContent = message;
+
+                let newCancelButton = modalCancelButton.cloneNode(true);
+                modalCancelButton.parentNode.replaceChild(newCancelButton, modalCancelButton);
+                modalCancelButton = newCancelButton;
+                
+                let newConfirmButton = modalConfirmButton.cloneNode(true);
+                modalConfirmButton.parentNode.replaceChild(newConfirmButton, modalConfirmButton);
+                modalConfirmButton = newConfirmButton;
+
+                const closeAction = () => modal.classList.add('hidden');
+                modalCancelButton.addEventListener('click', closeAction);
+
+                if (onConfirm) {
+                    modalConfirmButton.textContent = 'Confirmar';
+                    modalConfirmButton.classList.remove('hidden');
+                    modalCancelButton.classList.remove('hidden');
+
+                    modalConfirmButton.addEventListener('click', () => {
+                        onConfirm();
+                        closeAction();
+                    });
+                } else {
+                    modalConfirmButton.textContent = 'OK';
+                    modalConfirmButton.classList.remove('hidden');
+                    modalCancelButton.classList.add('hidden');
+                    modalConfirmButton.addEventListener('click', closeAction);
+                }
+                modal.classList.remove('hidden');
+            }
+
+            modalOverlay.addEventListener('click', () => {
+                modal.classList.add('hidden');
+            });
+
+
+            function updateDashboard() {
+                // 1. Resumo Mensal
+                const totalEntradas = db.resellers.reduce((sum, r) => sum + r.planValue, 0);
+                const totalCustosIptv = db.iptvCosts.reduce((sum, c) => sum + c.costValue, 0);
+                const totalContasCasa = db.householdBills.reduce((sum, b) => sum + b.costValue, 0);
+                const totalCustosGeral = totalCustosIptv + totalContasCasa;
+                const lucroLiquido = totalEntradas - totalCustosGeral;
+
+                dashEntradas.textContent = formatCurrency(totalEntradas);
+                dashCustosIptv.textContent = `- ${formatCurrency(totalCustosIptv)}`;
+                dashContasCasa.textContent = `- ${formatCurrency(totalContasCasa)}`;
+                dashLucroLiquido.textContent = formatCurrency(lucroLiquido);
+                dashLucroLiquido.classList.toggle('text-green-400', lucroLiquido >= 0);
+                dashLucroLiquido.classList.toggle('text-red-400', lucroLiquido < 0);
+
+                // 2. Resumo Anual
+                dashEntradasAno.textContent = formatCurrency(totalEntradas * 12);
+                dashCustosAno.textContent = `- ${formatCurrency(totalCustosGeral * 12)}`;
+                dashLucroAno.textContent = formatCurrency(lucroLiquido * 12);
+                dashLucroAno.classList.toggle('text-green-400', lucroLiquido >= 0);
+                dashLucroAno.classList.toggle('text-red-400', lucroLiquido < 0);
+
+                // 3. Entradas Previstas
+                const sumByRange = (min, max) => db.resellers
+                    .filter(r => r.paymentDay >= min && r.paymentDay <= max)
+                    .reduce((sum, r) => sum + r.planValue, 0);
+                
+                dashRange1_5.textContent = formatCurrency(sumByRange(1, 5));
+                dashRange6_10.textContent = formatCurrency(sumByRange(6, 10));
+                dashRange11_15.textContent = formatCurrency(sumByRange(11, 15));
+                dashRange16_21.textContent = formatCurrency(sumByRange(16, 21));
+                dashRange22_31.textContent = formatCurrency(sumByRange(22, 31));
+
+                // 4. Devedores (Melhoria 3: Notificação de Atraso)
+                const debtors = db.resellers.filter(r => !r.paidThisMonth);
+                const today = new Date().getDate(); // Pega o dia do mês atual
+                
+                dashDebtorsList.innerHTML = '';
+                if (debtors.length === 0) {
+                    dashDebtorsList.innerHTML = '<li class="text-gray-500">Nenhum devedor encontrado.</li>';
+                } else {
+                    debtors.sort((a,b) => a.paymentDay - b.paymentDay).forEach(d => {
+                        const li = document.createElement('li');
+                        li.className = 'flex justify-between items-center text-sm';
+                        
+                        const isLate = d.paymentDay < today; // Verifica se está atrasado
+                        
+                        let nameClass = isLate ? 'text-red-500 font-bold' : '';
+                        let lateTag = isLate ? ' (ATRASADO)' : '';
+
+                        li.innerHTML = `
+                            <span class="${nameClass}">${d.name}${lateTag}</span>
+                            <span class="font-medium ${nameClass}">${formatCurrency(d.planValue)}</span>
+                        `;
+                        dashDebtorsList.appendChild(li);
+                    });
+                }
+            }
+            
+            // --- Função de Cancelar Edição (Melhoria 1) ---
+            function cancelAllEdits() {
+                editingId = null;
+                editingType = null;
+                
+                // Reseta formulário Revendedor
+                formAddReseller.reset();
+                resellerSubmitButton.textContent = 'Adicionar Revendedor';
+                resellerSubmitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                resellerSubmitButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                resellerCancelEditButton.classList.add('hidden');
+                
+                // Reseta formulário Custo IPTV
+                formAddIptvCost.reset();
+                iptvCostSubmitButton.textContent = 'Adicionar Custo';
+                iptvCostSubmitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                iptvCostSubmitButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                iptvCostCancelEditButton.classList.add('hidden');
+                
+                // Reseta formulário Contas da Casa
+                formAddHouseholdBill.reset();
+                billSubmitButton.textContent = 'Adicionar Conta';
+                billSubmitButton.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                billSubmitButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                billCancelEditButton.classList.add('hidden');
+            }
+
+
+            // --- Lógica Aba IPTV (com Melhoria 1: Edição) ---
+            const formAddReseller = document.getElementById('form-add-reseller');
+            const resellerSubmitButton = document.getElementById('reseller-submit-button');
+            const resellerCancelEditButton = document.getElementById('reseller-cancel-edit-button');
+
+            const formAddIptvCost = document.getElementById('form-add-iptv-cost');
+            const iptvCostSubmitButton = document.getElementById('iptv-cost-submit-button');
+            const iptvCostCancelEditButton = document.getElementById('iptv-cost-cancel-edit-button');
+
+            const resellersListContainer = document.getElementById('resellers-list-container');
+            const iptvCostsListContainer = document.getElementById('iptv-costs-list-container');
+
+            function renderResellersList() {
+                resellersListContainer.innerHTML = '';
+                if (db.resellers.length === 0) {
+                    resellersListContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhum revendedor cadastrado.</p>';
+                    return;
+                }
+
+                db.resellers.sort((a,b) => a.paymentDay - b.paymentDay).forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-gray-800 rounded-lg mb-3 flex flex-wrap items-center justify-between transition-colors duration-200 hover:bg-gray-700';
+                    item.innerHTML = `
+                        <div class="flex-1 min-w-[150px] mb-2 md:mb-0">
+                            <span class="font-medium ${r.paidThisMonth ? 'line-through text-gray-500' : ''}">${r.name}</span>
+                            <span class="block text-sm text-gray-400">Dia ${r.paymentDay} - ${formatCurrency(r.planValue)}</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button data-id="${r.id}" class="toggle-paid-reseller text-sm ${r.paidThisMonth ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white py-1 px-3 rounded-lg transition-all duration-200">
+                                ${r.paidThisMonth ? 'Desmarcar' : 'PAGO'}
+                            </button>
+                            <button data-id="${r.id}" class="edit-reseller bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                Editar
+                            </button>
+                            <button data-id="${r.id}" class="delete-reseller bg-red-700 hover:bg-red-800 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                X
+                            </button>
+                        </div>
+                    `;
+                    resellersListContainer.appendChild(item);
+                });
+            }
+
+            function renderIptvCostsList() {
+                iptvCostsListContainer.innerHTML = '';
+                if (db.iptvCosts.length === 0) {
+                    iptvCostsListContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhum custo cadastrado.</p>';
+                    return;
+                }
+
+                db.iptvCosts.sort((a,b) => a.paymentDay - b.paymentDay).forEach(c => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-gray-800 rounded-lg mb-3 flex items-center justify-between transition-colors duration-200 hover:bg-gray-700';
+                    item.innerHTML = `
+                        <div>
+                            <span class="font-medium">${c.description}</span>
+                            <span class="block text-sm text-gray-400">Dia ${c.paymentDay} - ${formatCurrency(c.costValue)}</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button data-id="${c.id}" class="edit-iptv-cost bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                Editar
+                            </button>
+                            <button data-id="${c.id}" class="delete-iptv-cost bg-red-700 hover:bg-red-800 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                X
+                            </button>
+                        </div>
+                    `;
+                    iptvCostsListContainer.appendChild(item);
+                });
+            }
+
+            // Submit do Form Revendedor (Adicionar ou Editar)
+            formAddReseller.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const resellerData = {
+                    name: document.getElementById('reseller-name').value,
+                    planValue: parseFloat(document.getElementById('reseller-plan').value),
+                    paymentDay: parseInt(document.getElementById('reseller-day').value)
+                };
+
+                if (editingId && editingType === 'reseller') {
+                    // Modo Edição
+                    const resellerToUpdate = db.resellers.find(r => r.id === editingId);
+                    if (resellerToUpdate) {
+                        Object.assign(resellerToUpdate, resellerData);
+                    }
+                } else {
+                    // Modo Adição
+                    const newReseller = {
+                        ...resellerData,
+                        id: generateId(),
+                        paidThisMonth: false
+                    };
+                    db.resellers.push(newReseller);
+                }
+                
+                cancelAllEdits();
+                saveData();
+                renderResellersList();
+                updateDashboard();
+                renderReceivedList(); // <-- CORREÇÃO: Esta linha foi adicionada
+            });
+
+            // Submit do Form Custo IPTV (Adicionar ou Editar)
+            formAddIptvCost.addEventListener('submit', (e) => {
+                e.preventDefault();
+
+                const costData = {
+                    description: document.getElementById('iptv-cost-desc').value,
+                    costValue: parseFloat(document.getElementById('iptv-cost-value').value),
+                    paymentDay: parseInt(document.getElementById('iptv-cost-day').value),
+                };
+
+                if (editingId && editingType === 'iptvCost') {
+                    // Modo Edição
+                    const costToUpdate = db.iptvCosts.find(c => c.id === editingId);
+                    if (costToUpdate) {
+                        Object.assign(costToUpdate, costData);
+                    }
+                } else {
+                    // Modo Adição
+                    const newCost = {
+                        ...costData,
+                        id: generateId()
+                    };
+                    db.iptvCosts.push(newCost);
+                }
+                
+                cancelAllEdits();
+                saveData();
+                renderIptvCostsList();
+                updateDashboard();
+            });
+
+            // Botões de Cancelar Edição
+            resellerCancelEditButton.addEventListener('click', cancelAllEdits);
+            iptvCostCancelEditButton.addEventListener('click', cancelAllEdits);
+
+            // Event delegation para listas IPTV
+            resellersListContainer.addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                if (!id) return;
+
+                if (e.target.classList.contains('toggle-paid-reseller')) {
+                    const reseller = db.resellers.find(r => r.id === id);
+                    if (reseller) {
+                        reseller.paidThisMonth = !reseller.paidThisMonth;
+                        saveData();
+                        renderResellersList();
+                        updateDashboard();
+                        renderReceivedList();
+                    }
+                }
+                
+                if (e.target.classList.contains('edit-reseller')) {
+                    const reseller = db.resellers.find(r => r.id === id);
+                    if (reseller) {
+                        cancelAllEdits(); // Limpa outros formulários
+                        editingId = id;
+                        editingType = 'reseller';
+                        
+                        document.getElementById('reseller-name').value = reseller.name;
+                        document.getElementById('reseller-plan').value = reseller.planValue;
+                        document.getElementById('reseller-day').value = reseller.paymentDay;
+                        
+                        resellerSubmitButton.textContent = 'Salvar Alterações';
+                        resellerSubmitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        resellerSubmitButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                        resellerCancelEditButton.classList.remove('hidden');
+                        formAddReseller.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+
+                if (e.target.classList.contains('delete-reseller')) {
+                    showModal("Confirmar Exclusão", `Tem certeza que deseja excluir o revendedor "${db.resellers.find(r => r.id === id)?.name}"?`, () => {
+                        db.resellers = db.resellers.filter(r => r.id !== id);
+                        saveData();
+                        renderResellersList();
+                        updateDashboard();
+                        renderReceivedList();
+                        cancelAllEdits(); // Caso estivesse editando o item excluído
+                    });
+                }
+            });
+
+            iptvCostsListContainer.addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                if (!id) return;
+
+                if (e.target.classList.contains('edit-iptv-cost')) {
+                    const cost = db.iptvCosts.find(c => c.id === id);
+                    if(cost) {
+                        cancelAllEdits();
+                        editingId = id;
+                        editingType = 'iptvCost';
+                        
+                        document.getElementById('iptv-cost-desc').value = cost.description;
+                        document.getElementById('iptv-cost-value').value = cost.costValue;
+                        document.getElementById('iptv-cost-day').value = cost.paymentDay;
+
+                        iptvCostSubmitButton.textContent = 'Salvar Alterações';
+                        iptvCostSubmitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        iptvCostSubmitButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                        iptvCostCancelEditButton.classList.remove('hidden');
+                        formAddIptvCost.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+
+                if (e.target.classList.contains('delete-iptv-cost')) {
+                    showModal("Confirmar Exclusão", `Tem certeza que deseja excluir o custo "${db.iptvCosts.find(c => c.id === id)?.description}"?`, () => {
+                        db.iptvCosts = db.iptvCosts.filter(c => c.id !== id);
+                        saveData();
+                        renderIptvCostsList();
+                        updateDashboard();
+                        cancelAllEdits();
+                    });
+                }
+            });
+
+            // --- Lógica Aba Contas da Casa (com Melhoria 1: Edição) ---
+            const formAddHouseholdBill = document.getElementById('form-add-household-bill');
+            const billSubmitButton = document.getElementById('bill-submit-button');
+            const billCancelEditButton = document.getElementById('bill-cancel-edit-button');
+            const householdBillsListContainer = document.getElementById('household-bills-list-container');
+            
+            billCancelEditButton.addEventListener('click', cancelAllEdits);
+
+            function renderHouseholdBillsList() {
+                householdBillsListContainer.innerHTML = '';
+                if (db.householdBills.length === 0) {
+                    householdBillsListContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhuma conta cadastrada.</p>';
+                    return;
+                }
+
+                db.householdBills.sort((a,b) => a.paymentDay - b.paymentDay).forEach(b => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-gray-800 rounded-lg mb-3 flex flex-wrap items-center justify-between transition-colors duration-200 hover:bg-gray-700';
+                    item.innerHTML = `
+                        <div class="flex-1 min-w-[150px] mb-2 md:mb-0">
+                            <span class="font-medium ${b.paidThisMonth ? 'line-through text-gray-500' : ''}">${b.description}</span>
+                            <span class="block text-sm text-gray-400">Vence Dia ${b.paymentDay} - ${formatCurrency(b.costValue)}</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button data-id="${b.id}" class="toggle-paid-bill text-sm ${b.paidThisMonth ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-green-600 hover:bg-green-700'} text-white py-1 px-3 rounded-lg transition-all duration-200">
+                                ${b.paidThisMonth ? 'Desmarcar' : 'PAGO'}
+                            </button>
+                            <button data-id="${b.id}" class="edit-bill bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                Editar
+                            </button>
+                            <button data-id="${b.id}" class="delete-bill bg-red-700 hover:bg-red-800 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                                X
+                            </button>
+                        </div>
+                    `;
+                    householdBillsListContainer.appendChild(item);
+                });
+            }
+
+            formAddHouseholdBill.addEventListener('submit', (e) => {
+                e.preventDefault();
+                
+                const billData = {
+                    description: document.getElementById('bill-desc').value,
+                    costValue: parseFloat(document.getElementById('bill-value').value),
+                    paymentDay: parseInt(document.getElementById('bill-day').value),
+                };
+                
+                if (editingId && editingType === 'householdBill') {
+                    // Modo Edição
+                    const billToUpdate = db.householdBills.find(b => b.id === editingId);
+                    if(billToUpdate) {
+                        Object.assign(billToUpdate, billData);
+                        // Mantém o estado de 'paidThisMonth' que já existia
+                    }
+                } else {
+                    // Modo Adição
+                    const newBill = {
+                        ...billData,
+                        id: generateId(),
+                        paidThisMonth: false
+                    };
+                    db.householdBills.push(newBill);
+                }
+                
+                cancelAllEdits();
+                saveData();
+                renderHouseholdBillsList();
+                updateDashboard();
+            });
+
+            householdBillsListContainer.addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                if (!id) return;
+
+                if (e.target.classList.contains('toggle-paid-bill')) {
+                    const bill = db.householdBills.find(b => b.id === id);
+                    if (bill) {
+                        bill.paidThisMonth = !bill.paidThisMonth;
+                        saveData();
+                        renderHouseholdBillsList();
+                    }
+                }
+
+                if (e.target.classList.contains('edit-bill')) {
+                    const bill = db.householdBills.find(b => b.id === id);
+                    if (bill) {
+                        cancelAllEdits();
+                        editingId = id;
+                        editingType = 'householdBill';
+                        
+                        document.getElementById('bill-desc').value = bill.description;
+                        document.getElementById('bill-value').value = bill.costValue;
+                        document.getElementById('bill-day').value = bill.paymentDay;
+                        
+                        billSubmitButton.textContent = 'Salvar Alterações';
+                        billSubmitButton.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                        billSubmitButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                        billCancelEditButton.classList.remove('hidden');
+                        formAddHouseholdBill.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }
+
+                if (e.target.classList.contains('delete-bill')) {
+                    showModal("Confirmar Exclusão", `Tem certeza que deseja excluir a conta "${db.householdBills.find(b => b.id === id)?.description}"?`, () => {
+                        db.householdBills = db.householdBills.filter(b => b.id !== id);
+                        saveData();
+                        renderHouseholdBillsList();
+                        updateDashboard();
+                        cancelAllEdits();
+                    });
+                }
+            });
+
+            // --- Lógica de Importação e Exportação ---
+            exportJsonButton.addEventListener('click', () => {
+                try {
+                    const dataStr = JSON.stringify(db, null, 2);
+                    const blob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    const date = new Date().toISOString().split('T')[0];
+                    a.href = url;
+                    a.download = `controle-financeiro-backup-v2-${date}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                } catch (error) {
+                    console.error("Erro ao exportar dados:", error);
+                    showModal("Erro", "Ocorreu um erro ao tentar exportar os dados.");
+                }
+            });
+
+            // --- NOVA Lógica de Exportação CSV ---
+            exportCsvButton.addEventListener('click', async () => {
+                if (typeof JSZip === 'undefined' || typeof Papa === 'undefined') {
+                    showModal("Erro", "As bibliotecas JSZip ou PapaParse não foram carregadas. Verifique a sua conexão com a internet.");
+                    return;
+                }
+
+                try {
+                    const zip = new JSZip();
+                    
+                    // 1. Revendedores
+                    if (db.resellers && db.resellers.length > 0) {
+                        const resellersCsv = Papa.unparse(db.resellers);
+                        zip.file("revendedores.csv", resellersCsv);
+                    }
+
+                    // 2. Custos IPTV
+                    if (db.iptvCosts && db.iptvCosts.length > 0) {
+                        const iptvCostsCsv = Papa.unparse(db.iptvCosts);
+                        zip.file("custos_iptv.csv", iptvCostsCsv);
+                    }
+
+                    // 3. Contas da Casa
+                    if (db.householdBills && db.householdBills.length > 0) {
+                        const householdBillsCsv = Papa.unparse(db.householdBills);
+                        zip.file("contas_casa.csv", householdBillsCsv);
+                    }
+
+                    // 4. Histórico
+                    if (db.monthlyHistory && db.monthlyHistory.length > 0) {
+                        const historyCsv = Papa.unparse(db.monthlyHistory);
+                        zip.file("historico.csv", historyCsv);
+                    }
+
+                    // Gerar o ZIP
+                    const content = await zip.generateAsync({ type: "blob" });
+                    
+                    // Download
+                    const url = URL.createObjectURL(content);
+                    const a = document.createElement('a');
+                    const date = new Date().toISOString().split('T')[0];
+                    a.href = url;
+                    a.download = `controle-financeiro-csv-backup-v2-${date}.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                } catch (error) {
+                    console.error("Erro ao exportar CSV para ZIP:", error);
+                    showModal("Erro", "Ocorreu um erro ao tentar gerar o arquivo ZIP.");
+                }
+            });
+
+
+            importJsonButton.addEventListener('click', () => {
+                importJsonFileInput.click();
+            });
+
+            importJsonFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                    reader.onerror = () => showModal("Erro", "Não foi possível ler o arquivo selecionado.");
+                reader.readAsText(file);
+                e.target.value = null;
+            });
+
+
+            // --- NOVA Lógica de Importação CSV ---
+            importCsvButton.addEventListener('click', () => {
+                importCsvFileInput.click();
+            });
+
+            importCsvFileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                if (typeof JSZip === 'undefined' || typeof Papa === 'undefined') {
+                    showModal("Erro", "As bibliotecas JSZip ou PapaParse não foram carregadas. Verifique a sua conexão com a internet.");
+                    e.target.value = null;
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    let zip;
+                    try {
+                        zip = await JSZip.loadAsync(event.target.result);
+                    } catch (error) {
+                        showModal("Erro de Importação", "Arquivo ZIP inválido ou corrompido.");
+                        e.target.value = null;
+                        return;
+                    }
+                    
+                    const newDb = {
+                        resellers: db.resellers, // Mantém os dados antigos se o CSV não existir
+                        iptvCosts: db.iptvCosts,
+                        householdBills: db.householdBills,
+                        monthlyHistory: db.monthlyHistory
+                    };
+                    let filesFound = 0;
+
+                    try {
+                        // Mapeia os arquivos do ZIP para as chaves do DB
+                        const fileMap = {
+                            'revendedores.csv': 'resellers',
+                            'custos_iptv.csv': 'iptvCosts',
+                            'contas_casa.csv': 'householdBills',
+                            'historico.csv': 'monthlyHistory'
+                        };
+
+                        for (const filename in fileMap) {
+                            const zipFile = zip.file(filename);
+                            if (zipFile) {
+                                const csvString = await zipFile.async("string");
+                                const parsed = Papa.parse(csvString, {
+                                    header: true,
+                                    dynamicTyping: true, // Converte números/booleanos automaticamente
+                                    skipEmptyLines: true
+                                });
+                                
+                                if (parsed.data) {
+                                    newDb[fileMap[filename]] = parsed.data;
+                                    filesFound++;
+                                }
+                            }
+                        }
+
+                        if (filesFound === 0) {
+                            showModal("Erro de Importação", "Nenhum arquivo CSV válido (ex: revendedores.csv) foi encontrado dentro do ZIP.");
+                            e.target.value = null;
+                            return;
+                        }
+
+                        // Confirma a substituição
+                        showModal(
+                            "Confirmar Importação CSV",
+                            `Você tem certeza? ${filesFound} arquivos CSV foram lidos e irão SOBRESCREVER todos os seus dados atuais. Esta ação não pode ser desfeita.`,
+                            () => {
+                                // Garante que todos os campos booleanos 'paidThisMonth' sejam restaurados corretamente
+                                // PapaParse pode interpretar 'false' como string
+                                const cleanBool = (item) => {
+                                    if (item.hasOwnProperty('paidThisMonth')) {
+                                        item.paidThisMonth = item.paidThisMonth === true || item.paidThisMonth === 'true';
+                                    }
+                                    return item;
+                                };
+                                
+                                db.resellers = newDb.resellers.map(cleanBool);
+                                db.householdBills = newDb.householdBills.map(cleanBool);
+                                db.iptvCosts = newDb.iptvCosts; // Não têm 'paidThisMonth'
+                                db.monthlyHistory = newDb.monthlyHistory; // Não têm 'paidThisMonth'
+                                
+                                saveData();
+                                updateAllLists();
+                                cancelAllEdits();
+                                showModal("Sucesso", "Dados importados do ZIP com sucesso!");
+                            }
+                        );
+
+                    } catch (err) {
+                        console.error("Erro ao processar CSV do ZIP:", err);
+                        showModal("Erro", "Ocorreu um erro ao ler o conteúdo dos arquivos CSV dentro do ZIP.");
+                    }
+                };
+                reader.onerror = () => showModal("Erro", "Não foi possível ler o arquivo ZIP selecionado.");
+                reader.readAsArrayBuffer(file); // JSZip lê ArrayBuffer
+                e.target.value = null;
+            });
+
+
+            // --- Ação de Fechar Mês (Melhoria 2) ---
+            closeMonthButton.addEventListener('click', () => {
+                const now = new Date();
+                const monthYear = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+                
+                // 1. Calcular o "retrato" financeiro do mês
+                const totalEntradas = db.resellers.reduce((sum, r) => sum + r.planValue, 0);
+                const totalCustosIptv = db.iptvCosts.reduce((sum, c) => sum + c.costValue, 0);
+                const totalContasCasa = db.householdBills.reduce((sum, b) => sum + b.costValue, 0);
+                const totalCustosGeral = totalCustosIptv + totalContasCasa;
+                const lucroLiquido = totalEntradas - totalCustosGeral;
+
+                const historyEntry = {
+                    id: generateId(),
+                    monthYear,
+                    totalEntradas,
+                    totalCustosGeral,
+                    lucroLiquido
+                };
+
+                showModal(
+                    "Fechar o Mês?",
+                    `Deseja fechar o mês ${monthYear} com um lucro de ${formatCurrency(lucroLiquido)}? Isso salvará o histórico e irá reiniciar o status de pagamento de todos os itens.`,
+                    () => {
+                        // 2. Salvar o histórico
+                        db.monthlyHistory.push(historyEntry);
+                        
+                        // 3. Resetar os pagamentos
+                        db.resellers.forEach(r => r.paidThisMonth = false);
+                        db.householdBills.forEach(b => b.paidThisMonth = false);
+                        
+                        // 4. Salvar e Re-renderizar tudo
+                        saveData();
+                        updateAllLists(); // Função global de renderização
+                        
+                        showModal("Mês Fechado!", `O mês ${monthYear} foi fechado e salvo no histórico. Os pagamentos foram reiniciados.`);
+                    }
+                );
+            });
+
+            // --- Lógica Aba Entradas Recebidas ---
+            function renderReceivedList() {
+                receivedListContainer.innerHTML = '';
+                
+                const received = db.resellers.filter(r => r.paidThisMonth);
+                const pending = db.resellers.filter(r => !r.paidThisMonth);
+
+                const totalReceived = received.reduce((sum, r) => sum + r.planValue, 0);
+                const totalPending = pending.reduce((sum, r) => sum + r.planValue, 0);
+
+                receivedTotalSummary.textContent = formatCurrency(totalReceived);
+                pendingTotalSummary.textContent = formatCurrency(totalPending);
+
+                if (received.length === 0) {
+                    receivedListContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhum pagamento recebido este mês.</p>';
+                    return;
+                }
+
+                received.sort((a,b) => a.paymentDay - b.paymentDay).forEach(r => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-gray-800 rounded-lg mb-3 flex items-center justify-between transition-colors duration-200';
+                    item.innerHTML = `
+                        <div>
+                            <span class="font-medium text-green-400">${r.name}</span>
+                            <span class="block text-sm text-gray-400">Dia ${r.paymentDay} - ${formatCurrency(r.planValue)}</span>
+                        </div>
+                    `;
+                    receivedListContainer.appendChild(item);
+                });
+            }
+
+            // --- Lógica Aba Histórico (Melhoria 2) ---
+            function renderHistoryList() {
+                historyListContainer.innerHTML = '';
+                historyChartContainer.innerHTML = ''; // Limpa o gráfico
+
+                if (db.monthlyHistory.length === 0) {
+                    historyListContainer.innerHTML = '<p class="text-gray-500 text-center">Nenhum mês fechado ainda.</p>';
+                    historyChartContainer.innerHTML = '<p class="text-gray-500 text-center">Sem dados para o gráfico.</p>';
+                    return;
+                }
+
+                // 1. Renderizar Lista
+                const reversedHistory = [...db.monthlyHistory].reverse();
+                reversedHistory.forEach(h => {
+                    const item = document.createElement('div');
+                    const lucroClass = h.lucroLiquido >= 0 ? 'text-green-400' : 'text-red-400';
+                    item.className = 'p-3 bg-gray-800 rounded-lg mb-3 flex flex-wrap items-center justify-between transition-colors duration-200 hover:bg-gray-700';
+                    item.innerHTML = `
+                        <div class="flex-1 min-w-[100px] mb-2 md:mb-0">
+                            <span class="font-bold text-lg">${h.monthYear}</span>
+                            <span class="block text-sm ${lucroClass} font-medium">Lucro: ${formatCurrency(h.lucroLiquido)}</span>
+                        </div>
+                        <div class="flex-1 min-w-[150px] text-sm text-gray-400">
+                            <div>Entradas: <span class="text-green-400">${formatCurrency(h.totalEntradas)}</span></div>
+                            <div>Custos: <span class="text-red-400">${formatCurrency(h.totalCustosGeral)}</span></div>
+                        </div>
+                        <button data-id="${h.id}" class="delete-history bg-red-700 hover:bg-red-800 text-white py-1 px-3 rounded-lg text-sm transition-all duration-200">
+                            X
+                        </button>
+                    `;
+                    historyListContainer.appendChild(item);
+                });
+
+                // 2. Renderizar Gráfico (últimos 12 meses)
+                const chartData = db.monthlyHistory.slice(-12);
+                
+                // Encontra o maior valor absoluto para normalizar o gráfico (para lidar com lucros e prejuízos)
+                const maxAbsValue = Math.max(...chartData.map(h => Math.abs(h.lucroLiquido)), 1); // 1 para evitar divisão por zero
+
+                chartData.forEach(h => {
+                    const row = document.createElement('div');
+                    row.className = 'bar-chart-row';
+                    
+                    const widthPercent = (Math.abs(h.lucroLiquido) / maxAbsValue) * 100;
+                    const isNegative = h.lucroLiquido < 0;
+
+                    row.innerHTML = `
+                        <div class="bar-chart-label">${h.monthYear}</div>
+                        <div class="bar-chart-bar-bg">
+                            <div class="bar-chart-bar ${isNegative ? 'negative' : ''}" style="width: ${widthPercent}%;">
+                                ${formatCurrency(h.lucroLiquido)}
+                            </div>
+                        </div>
+                    `;
+                    historyChartContainer.appendChild(row);
+                });
+            }
+
+            // Adicionar listener para deletar do histórico
+            historyListContainer.addEventListener('click', (e) => {
+                const id = e.target.dataset.id;
+                if (id && e.target.classList.contains('delete-history')) {
+                     showModal("Confirmar Exclusão", `Tem certeza que deseja excluir o registro do mês "${db.monthlyHistory.find(h => h.id === id)?.monthYear}"?`, () => {
+                        db.monthlyHistory = db.monthlyHistory.filter(h => h.id !== id);
+                        saveData();
+                        renderHistoryList();
+                     });
+                }
+            });
+
+            // --- Função Global de Renderização ---
+            function updateAllLists() {
+                updateDashboard();
+                renderResellersList();
+                renderIptvCostsList();
+                renderHouseholdBillsList();
+                renderReceivedList();
+                renderHistoryList();
+            }
+
+            // --- Inicialização ---
+            loadData();
+            showTab('dashboard'); // Aba inicial
+            updateAllLists();
+        });
+    </script>
+
+</body>
+</html>
+
+
+
